@@ -4,7 +4,7 @@ on:
   schedule:
     # Uruchamia się o 7:00 UTC (czyli 9:00 czasu letniego w Polsce - CEST)
     # Zimą (CET) będzie to 8:00 UTC.
-    - cron: '05 11 * * *'
+    - cron: '12 09 * * *'
   # Ten wpis pozwala na ręczne uruchomienie skryptu z panelu "Actions"
   workflow_dispatch:
 
