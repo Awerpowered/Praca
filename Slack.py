@@ -45,7 +45,7 @@ if len(data) > 0:
         publish_sheet = client.create("Slack_publish").sheet1
         publish_sheet.share(service_account_email, perm_type='user', role='writer')
 
-    # Opcjonalnie: wyczyść arkusz przed dodaniem nowych danych
+    # Opcjonalnie: wyczyść arkusz przed dodaniem nowych danyc
 
 
     # Dodaj nagłówki
