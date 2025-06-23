@@ -2,7 +2,7 @@ name: Codzienny Update Arkusza Google
 
 on:
   schedule:
-    # Uruchamia się o 7:00 UTC (czyli 9:00 czasu letniego w Polsce - CEST)
+    # Uruchamia się o 7:00 UTC (czyli 9:00 czasu letniego w Polsce - CEST
     # Zimą (CET) będzie to 8:00 UTC.
     - cron: '23 12 * * *'
   # Ten wpis pozwala na ręczne uruchomienie skryptu z panelu "Actions"
