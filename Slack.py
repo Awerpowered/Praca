@@ -46,7 +46,7 @@ if len(data) > 0:
         publish_sheet.share(service_account_email, perm_type='user', role='writer')
 
     # Opcjonalnie: wyczyść arkusz przed dodaniem nowych danych
-    publish_sheet.clear()
+
 
     # Dodaj nagłówki
     if random_rows:
