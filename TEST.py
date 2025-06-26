@@ -30,7 +30,7 @@ def autoryzuj_google_sheets():
     print("Attempting to authorize with Google Sheets...")
     try:
         # Pobierz zawartość JSON z sekretu GitHub
-        google_creds_json_str = os.getenv("GCP_SA_KEY")
+        google_creds_json_str = os.environ.get("GCP_SA_KEY")
         if not google_creds_json_str:
             print("❌ ERROR: Environment variable GOOGLE_CREDENTIALS_JSON not found.")
             return None
@@ -109,7 +109,7 @@ def dopisz_dane_do_arkusza(gc, nazwa_arkusza, dataframe):
 def analizuj_tweety_z_openai(lista_tweetow, liczba_do_wyboru):
     """Wysyła ponumerowane tweety do AI i prosi o zwrot numerów najlepszych z nich."""
     try:
-        openai_api_key = os.getenv("OPENAI_API_KEY")
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
         if not openai_api_key:
             print("❌ ERROR: Environment variable OPENAI_API_KEY not found.")
             return None
