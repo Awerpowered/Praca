@@ -56,11 +56,8 @@ def pobierz_stan(arkusz_glowny):
         print(f"Worksheet '{NAZWA_ARKUSZA_STANU}' not found. Creating it...")
         zakladka_stanu = arkusz_glowny.add_worksheet(title=NAZWA_ARKUSZA_STANU, rows="10", cols="10")
 
-        # --- POPRAWIONY FRAGMENT ---
-        # Metoda update oczekuje listy list, nawet dla pojedynczej komórki.
         zakladka_stanu.update('A1', [['last_processed_row_index']])
         zakladka_stanu.update(KOMORKA_STANU, [['0']])
-        # --- KONIEC POPRAWKI ---
 
         print(f"✅ Created and initialized worksheet '{NAZWA_ARKUSZA_STANU}'.")
         return 0
@@ -73,12 +70,7 @@ def aktualizuj_stan(arkusz_glowny, nowy_indeks_wiersza):
     """Aktualizuje numer ostatniego przetworzonego wiersza w zakładce _script_state."""
     try:
         zakladka_stanu = arkusz_glowny.worksheet(NAZWA_ARKUSZA_STANU)
-
-        # --- POPRAWIONY FRAGMENT ---
-        # Tutaj również wymagana jest lista list.
         zakladka_stanu.update(KOMORKA_STANU, [[str(nowy_indeks_wiersza)]])
-        # --- KONIEC POPRAWKI ---
-
         print(f"✅ State updated. Last processed row is now: {nowy_indeks_wiersza}")
     except Exception as e:
         print(f"❌ ERROR updating state: {e}")
@@ -163,8 +155,34 @@ def main():
     ostatni_przetworzony_wiersz = pobierz_stan(arkusz_glowny)
     print(f"ℹ️ Last processed row index from state: {ostatni_przetworzony_wiersz}")
 
-    wszystkie_rekordy = zakladka_danych.get_all_records()
-    df = pd.DataFrame(wszystkie_rekordy)
+    # --- START OF FIX ---
+    # Ręczne wczytywanie danych w celu obsługi zduplikowanych/pustych nagłówków.
+    print("Fetching all values to handle potentially bad headers...")
+    wszystkie_wartosci = zakladka_danych.get_all_values()
+    if not wszystkie_wartosci or len(wszystkie_wartosci) < 2:
+        print("✅ Worksheet is empty or contains only a header. No records to process. Exiting.")
+        return
+
+    naglowki_oryginalne = wszystkie_wartosci[0]
+    dane_wiersze = wszystkie_wartosci[1:]
+
+    naglowki_naprawione = []
+    uzyte_nazwy = {}
+    for naglowek in naglowki_oryginalne:
+        oryginalna_nazwa = naglowek if naglowek else 'pusta_kolumna'
+        if oryginalna_nazwa in uzyte_nazwy:
+            uzyte_nazwy[oryginalna_nazwa] += 1
+            nowa_nazwa = f"{oryginalna_nazwa}_{uzyte_nazwy[oryginalna_nazwa]}"
+        else:
+            uzyte_nazwy[oryginalna_nazwa] = 0
+            nowa_nazwa = oryginalna_nazwa
+        naglowki_naprawione.append(nowa_nazwa)
+
+    df = pd.DataFrame(dane_wiersze, columns=naglowki_naprawione)
+    df.dropna(how='all', inplace=True)
+    print(f"Successfully created DataFrame with {len(df)} rows.")
+    # --- END OF FIX ---
+
     aktualna_liczba_wierszy = len(df)
 
     if aktualna_liczba_wierszy <= ostatni_przetworzony_wiersz:
