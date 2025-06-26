@@ -79,15 +79,15 @@ def aktualizuj_stan(arkusz_glowny, nowy_indeks_wiersza):
 
 def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, dataframe_wynikow):
     """
-    Zapisuje dane do arkusza wynikowego metodą "odczytaj-wszystko, połącz, wyczyść, zapisz-wszystko",
+    Zapisuje dane do arkusza wynikowego metodą "w pętli for", wiersz po wierszu,
     aby zapewnić maksymalną niezawodność.
     """
     if dataframe_wynikow.empty:
         print("ℹ️ No new results to write. Skipping.")
-        return True  # Zwróć sukces, bo nic nie trzeba było robić
+        return True
 
     try:
-        print(f"--- Starting robust write process for worksheet '{nazwa_zakladki_wynikowej}' ---")
+        print(f"--- Starting row-by-row write process for worksheet '{nazwa_zakladki_wynikowej}' ---")
         arkusz_google = gc.open(nazwa_arkusza_matki)
         try:
             zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
@@ -95,35 +95,27 @@ def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, da
             print(f"Worksheet '{nazwa_zakladki_wynikowej}' not found, creating it...")
             zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
 
-        # 1. Odczytaj wszystkie istniejące dane
-        print("Reading all existing data from the target sheet...")
-        istniejace_dane = zakladka.get_all_values()
-        print(f"Found {len(istniejace_dane)} existing rows.")
+        # 1. Sprawdź, czy trzeba dodać nagłówki
+        if not zakladka.get_all_values():
+            print("Target sheet is empty. Appending headers...")
+            naglowki = dataframe_wynikow.columns.tolist()
+            zakladka.append_row(naglowki, value_input_option='USER_ENTERED')
+            time.sleep(1)  # Pauza po zapisie nagłówków
 
-        # 2. Przygotuj nowe dane i połącz je z istniejącymi
-        nowe_wiersze = dataframe_wynikow.values.tolist()
+        # 2. Dopisuj każdy wiersz osobno w pętli
+        print(f"Appending {len(dataframe_wynikow)} new records one by one...")
+        for index, row in dataframe_wynikow.iterrows():
+            lista_wiersza = row.values.tolist()
+            print(f"  Appending row {index + 1}/{len(dataframe_wynikow)}: {lista_wiersza}")
+            zakladka.append_row(lista_wiersza, value_input_option='USER_ENTERED')
+            time.sleep(1)  # Pauza, aby nie przekroczyć limitu zapytań API
 
-        if not istniejace_dane:  # Jeśli arkusz jest pusty, dodaj nagłówki
-            print("Target sheet is empty. Adding headers.")
-            finalna_lista_danych = [dataframe_wynikow.columns.tolist()] + nowe_wiersze
-        else:
-            finalna_lista_danych = istniejace_dane + nowe_wiersze
-
-        # 3. Wyczyść cały arkusz
-        print(f"Clearing the entire worksheet '{nazwa_zakladki_wynikowej}'...")
-        zakladka.clear()
-        time.sleep(2)  # Krótka pauza po czyszczeniu, aby API Google nadążyło
-
-        # 4. Zapisz połączone dane z powrotem
-        print(f"Writing {len(finalna_lista_danych)} total rows back to the sheet...")
-        zakladka.update(range_name='A1', values=finalna_lista_danych, value_input_option='USER_ENTERED')
-
-        print(f"✅ Robust write operation completed for '{nazwa_zakladki_wynikowej}'.")
-        return True  # Zwróć sukces
+        print(f"✅ Row-by-row write operation completed for '{nazwa_zakladki_wynikowej}'.")
+        return True
 
     except Exception as e:
-        print(f"❌ CRITICAL ERROR during robust write operation: {e}")
-        return False  # Zwróć błąd
+        print(f"❌ CRITICAL ERROR during row-by-row write operation: {e}")
+        return False
 
 
 def analizuj_tweety_z_openai(lista_tweetow, liczba_do_wyboru):
@@ -232,10 +224,8 @@ def main():
     finalne_rekordy_df = nowe_rekordy_df.iloc[indeksy_df]
     wyniki_df = finalne_rekordy_df[[NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]]
 
-    # Zapisz dane i sprawdź, czy operacja się powiodła
     sukces_zapisu = dopisz_dane_do_arkusza(gc, NAZWA_ARKUSZA_GOOGLE, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
 
-    # Zaktualizuj stan tylko jeśli zapis się udał
     if sukces_zapisu:
         aktualizuj_stan(arkusz_glowny, aktualna_liczba_wierszy)
         print("\n🎉 All operations completed successfully!")
