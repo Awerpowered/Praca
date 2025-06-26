@@ -29,16 +29,12 @@ def autoryzuj_google_sheets():
     """
     print("Attempting to authorize with Google Sheets...")
     try:
-        # Pobierz zawartość JSON z sekretu GitHub
-        google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+        google_creds_json_str = os.getenv("GCP_SA_KEY")
         if not google_creds_json_str:
-            print("❌ ERROR: Environment variable GOOGLE_CREDENTIALS_JSON not found.")
+            print("❌ ERROR: Environment variable GCP_SA_KEY not found.")
             return None
 
-        # Przekonwertuj string JSON na słownik Pythona
         google_creds_dict = json.loads(google_creds_json_str)
-
-        # Autoryzuj używając słownika
         gc = gspread.service_account_from_dict(google_creds_dict)
         print("✅ Successfully authorized with Google Sheets.")
         return gc
@@ -55,13 +51,18 @@ def pobierz_stan(arkusz_glowny):
     try:
         zakladka_stanu = arkusz_glowny.worksheet(NAZWA_ARKUSZA_STANU)
         ostatni_wiersz = zakladka_stanu.acell(KOMORKA_STANU).value
-        # Jeśli komórka jest pusta lub wartość nie jest liczbą, zacznij od początku
         return int(ostatni_wiersz) if ostatni_wiersz and ostatni_wiersz.isdigit() else 0
     except gspread.exceptions.WorksheetNotFound:
         print(f"Worksheet '{NAZWA_ARKUSZA_STANU}' not found. Creating it...")
         zakladka_stanu = arkusz_glowny.add_worksheet(title=NAZWA_ARKUSZA_STANU, rows="10", cols="10")
-        zakladka_stanu.update('A1', 'last_processed_row_index')
-        zakladka_stanu.update(KOMORKA_STANU, '0')
+
+        # --- POPRAWIONY FRAGMENT ---
+        # Metoda update oczekuje listy list, nawet dla pojedynczej komórki.
+        zakladka_stanu.update('A1', [['last_processed_row_index']])
+        zakladka_stanu.update(KOMORKA_STANU, [['0']])
+        # --- KONIEC POPRAWKI ---
+
+        print(f"✅ Created and initialized worksheet '{NAZWA_ARKUSZA_STANU}'.")
         return 0
     except Exception as e:
         print(f"Error getting state: {e}. Defaulting to 0.")
@@ -72,36 +73,39 @@ def aktualizuj_stan(arkusz_glowny, nowy_indeks_wiersza):
     """Aktualizuje numer ostatniego przetworzonego wiersza w zakładce _script_state."""
     try:
         zakladka_stanu = arkusz_glowny.worksheet(NAZWA_ARKUSZA_STANU)
-        zakladka_stanu.update(KOMORKA_STANU, str(nowy_indeks_wiersza))
+
+        # --- POPRAWIONY FRAGMENT ---
+        # Tutaj również wymagana jest lista list.
+        zakladka_stanu.update(KOMORKA_STANU, [[str(nowy_indeks_wiersza)]])
+        # --- KONIEC POPRAWKI ---
+
         print(f"✅ State updated. Last processed row is now: {nowy_indeks_wiersza}")
     except Exception as e:
         print(f"❌ ERROR updating state: {e}")
 
 
-def dopisz_dane_do_arkusza(gc, nazwa_arkusza, dataframe):
-    """Dopisuje dane z DataFrame na końcu istniejącego arkusza."""
+def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, dataframe):
+    """Dopisuje dane z DataFrame na końcu istniejącej zakładki w arkuszu."""
     if dataframe.empty:
         print("ℹ️ No data to append. Skipping.")
         return
     try:
-        arkusz_google = gc.open(nazwa_arkusza)
-        zakladka = arkusz_google.worksheet(NAZWA_ARKUSZA_WYNIKOWEGO)
+        arkusz_google = gc.open(nazwa_arkusza_matki)
+        try:
+            zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
+        except gspread.exceptions.WorksheetNotFound:
+            print(f"Worksheet '{nazwa_zakladki_wynikowej}' not found, creating it...")
+            zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
     except gspread.exceptions.SpreadsheetNotFound:
-        print(f"Worksheet '{nazwa_arkusza}' not found, creating it...")
-        arkusz_google = gc.create(nazwa_arkusza)
-        zakladka = arkusz_google.sheet1
-        zakladka.title = NAZWA_ARKUSZA_WYNIKOWEGO
-    except gspread.exceptions.WorksheetNotFound:
-        zakladka = arkusz_google.add_worksheet(title=NAZWA_ARKUSZA_WYNIKOWEGO, rows="100", cols="20")
+        print(f"Spreadsheet '{nazwa_arkusza_matki}' not found, this should not happen.")
+        return
 
-    # Sprawdź, czy arkusz jest pusty. Jeśli tak, dodaj nagłówki.
     if not zakladka.get_all_values():
         print("Worksheet is empty. Appending headers.")
         naglowki = [dataframe.columns.values.tolist()]
         zakladka.append_rows(naglowki, value_input_option='USER_ENTERED')
 
-    # Dopisz nowe wiersze
-    print(f"✍️ Appending {len(dataframe)} new rows to worksheet '{NAZWA_ARKUSZA_WYNIKOWEGO}'...")
+    print(f"✍️ Appending {len(dataframe)} new rows to worksheet '{nazwa_zakladki_wynikowej}'...")
     zakladka.append_rows(dataframe.values.tolist(), value_input_option='USER_ENTERED')
     print(f"✅ Successfully appended data.")
 
@@ -109,7 +113,7 @@ def dopisz_dane_do_arkusza(gc, nazwa_arkusza, dataframe):
 def analizuj_tweety_z_openai(lista_tweetow, liczba_do_wyboru):
     """Wysyła ponumerowane tweety do AI i prosi o zwrot numerów najlepszych z nich."""
     try:
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
             print("❌ ERROR: Environment variable OPENAI_API_KEY not found.")
             return None
@@ -189,9 +193,8 @@ def main():
     finalne_rekordy_df = nowe_rekordy_df.iloc[indeksy_df]
     wyniki_df = finalne_rekordy_df[[NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]]
 
-    dopisz_dane_do_arkusza(gc, NAZWA_ARKUSZA_GOOGLE, wyniki_df)
+    dopisz_dane_do_arkusza(gc, NAZWA_ARKUSZA_GOOGLE, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
 
-    # Zaktualizuj stan tylko jeśli wszystkie operacje się powiodły
     aktualizuj_stan(arkusz_glowny, aktualna_liczba_wierszy)
 
     print("\n🎉 All operations completed successfully!")
@@ -199,4 +202,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
