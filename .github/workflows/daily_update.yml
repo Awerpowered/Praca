@@ -1,37 +1,38 @@
-name: Codzienny Update Arkusza Google
+name: Daily Tweet Analysis
 
 on:
+  # Uruchamia skrypt codziennie o 7:00 UTC (9:00 czasu polskiego letniego)
   schedule:
-    # Uruchamia się o 7:00 UTC (czyli 9:00 czasu letniego w Polsce - CEST
-    # Zimą (CET) będzie to 8:00 UTC.
-    - cron: '* * */1 * *'
-  # Ten wpis pozwala na ręczne uruchomienie skryptu z panelu "Actions"
+    - cron: '0 7 * * *'
+
+  # Pozwala na ręczne uruchomienie skryptu z poziomu zakładki "Actions" w GitHub
   workflow_dispatch:
 
 jobs:
-  update-google-sheet:
+  run-analysis:
     runs-on: ubuntu-latest
+
     steps:
       # Krok 1: Pobranie kodu z repozytorium
-      - name: Pobierz kod
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       # Krok 2: Ustawienie środowiska Python
-      - name: Ustaw Pythona
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: '3.10'
 
-      # Krok 3: Instalacja potrzebnych bibliotek
-      - name: Zainstaluj biblioteki
+      # Krok 3: Instalacja zależności z pliku requirements.txt
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install gspread oauth2client
-          pip install openai
+          pip install -r requirements.txt
 
-      # Krok 4: Uruchomienie skryptu
-      - name: Uruchom skrypt aktualizujący
-        # Tutaj przekazujemy nasz sekret do zmiennej środowiskowej
+      # Krok 4: Uruchomienie skryptu analizy
+      - name: Run Python script
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-        run: python Slack.py
+          # Przekazanie sekretów do środowiska skryptu
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        run: python daily_tweet_analysis.py
