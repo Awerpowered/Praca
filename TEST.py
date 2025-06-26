@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import time
 import gspread
 import pandas as pd
 from openai import OpenAI
@@ -56,8 +57,8 @@ def pobierz_stan(arkusz_glowny):
         print(f"Worksheet '{NAZWA_ARKUSZA_STANU}' not found. Creating it...")
         zakladka_stanu = arkusz_glowny.add_worksheet(title=NAZWA_ARKUSZA_STANU, rows="10", cols="10")
 
-        zakladka_stanu.update('A1', [['last_processed_row_index']])
-        zakladka_stanu.update(KOMORKA_STANU, [['0']])
+        zakladka_stanu.update(range_name='A1', values=[['last_processed_row_index']])
+        zakladka_stanu.update(range_name=KOMORKA_STANU, values=[['0']])
 
         print(f"✅ Created and initialized worksheet '{NAZWA_ARKUSZA_STANU}'.")
         return 0
@@ -70,36 +71,57 @@ def aktualizuj_stan(arkusz_glowny, nowy_indeks_wiersza):
     """Aktualizuje numer ostatniego przetworzonego wiersza w zakładce _script_state."""
     try:
         zakladka_stanu = arkusz_glowny.worksheet(NAZWA_ARKUSZA_STANU)
-        zakladka_stanu.update(KOMORKA_STANU, [[str(nowy_indeks_wiersza)]])
+        zakladka_stanu.update(range_name=KOMORKA_STANU, values=[[str(nowy_indeks_wiersza)]])
         print(f"✅ State updated. Last processed row is now: {nowy_indeks_wiersza}")
     except Exception as e:
         print(f"❌ ERROR updating state: {e}")
 
 
-def dopisz_dane_do_arkusza(arkusz_google, nazwa_zakladki_wynikowej, dataframe):
-    """Dopisuje dane z DataFrame na końcu istniejącej zakładki w arkuszu, dodając nagłówki tylko jeśli to konieczne."""
+def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, dataframe):
+    """Dopisuje dane z DataFrame na końcu istniejącej zakładki w arkuszu, dodając nagłówki i weryfikując zapis."""
     if dataframe.empty:
         print("ℹ️ No data to append. Skipping.")
         return
     try:
-        zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
-        ma_zawartosc = zakladka.get_all_values()
-    except gspread.exceptions.WorksheetNotFound:
-        print(f"Worksheet '{nazwa_zakladki_wynikowej}' not found, creating it...")
-        zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
-        ma_zawartosc = False
+        print(f"Opening spreadsheet '{nazwa_arkusza_matki}' to append data...")
+        arkusz_google = gc.open(nazwa_arkusza_matki)
+        try:
+            zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
+        except gspread.exceptions.WorksheetNotFound:
+            print(f"Worksheet '{nazwa_zakladki_wynikowej}' not found, creating it...")
+            zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
 
-    lista_wierszy_do_dopisania = []
+        # Pobierz liczbę wierszy PRZED dopisaniem
+        wiersze_przed = len(zakladka.get_all_values())
 
-    if not ma_zawartosc:
-        print("Worksheet is empty. Prepending headers to the data.")
-        lista_wierszy_do_dopisania.extend([dataframe.columns.values.tolist()])
+        lista_wierszy_do_dopisania = []
 
-    lista_wierszy_do_dopisania.extend(dataframe.values.tolist())
+        # Jeśli arkusz jest pusty (0 wierszy), dodaj nagłówki
+        if wiersze_przed == 0:
+            print("Worksheet is empty. Prepending headers to the data.")
+            lista_wierszy_do_dopisania.extend([dataframe.columns.values.tolist()])
 
-    print(f"✍️ Appending {len(lista_wierszy_do_dopisania)} total rows to worksheet '{nazwa_zakladki_wynikowej}'...")
-    zakladka.append_rows(lista_wierszy_do_dopisania, value_input_option='USER_ENTERED')
-    print(f"✅ Successfully appended data.")
+        lista_wierszy_do_dopisania.extend(dataframe.values.tolist())
+
+        print(f"✍️ Appending {len(lista_wierszy_do_dopisania)} total rows to worksheet '{nazwa_zakladki_wynikowej}'...")
+        zakladka.append_rows(lista_wierszy_do_dopisania, value_input_option='USER_ENTERED')
+
+        # --- KROK WERYFIKACJI ---
+        print("Verifying write operation...")
+        time.sleep(2)  # Daj Google API chwilę na przetworzenie zapisu
+        wiersze_po = len(zakladka.get_all_values())
+
+        oczekiwana_liczba_wierszy = wiersze_przed + len(lista_wierszy_do_dopisania)
+
+        if wiersze_po == oczekiwana_liczba_wierszy:
+            print(f"✅ Successfully appended data. Row count is now {wiersze_po}.")
+        else:
+            print(f"❌ CRITICAL WRITE ERROR: Data was not appended correctly!")
+            print(
+                f"Rows before: {wiersze_przed}, Rows to append: {len(lista_wierszy_do_dopisania)}, Expected rows after: {oczekiwana_liczba_wierszy}, Actual rows after: {wiersze_po}")
+
+    except Exception as e:
+        print(f"❌ An error occurred during the append operation: {e}")
 
 
 def analizuj_tweety_z_openai(lista_tweetow, liczba_do_wyboru):
@@ -208,7 +230,7 @@ def main():
     finalne_rekordy_df = nowe_rekordy_df.iloc[indeksy_df]
     wyniki_df = finalne_rekordy_df[[NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]]
 
-    dopisz_dane_do_arkusza(arkusz_glowny, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
+    dopisz_dane_do_arkusza(gc, NAZWA_ARKUSZA_GOOGLE, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
 
     aktualizuj_stan(arkusz_glowny, aktualna_liczba_wierszy)
 
