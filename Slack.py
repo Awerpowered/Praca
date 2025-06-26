@@ -36,13 +36,7 @@ except Exception as e:
 
 # 2. Konfiguracja OpenAI API
 #    Ustaw swój klucz API jako zmienną środowiskową o nazwie 'OPENAI_API_KEY'.
-try:
-    openai.api_key = os.environ.get("OPENAI_API_KEY")
-    if openai.api_key is None:
-        raise ValueError("Sekret OPENAI_API_KEY nie został znaleziony. Upewnij się, że jest poprawnie skonfigurowany.")
-except ValueError as e:
-    print(f"BŁĄD: {e}")
-    exit()
+
 
 # 3. Nazwy arkuszy i nagłówki
 SOURCE_SHEET_NAME = "Twitter_LLM"
