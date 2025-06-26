@@ -76,33 +76,25 @@ def aktualizuj_stan(arkusz_glowny, nowy_indeks_wiersza):
         print(f"❌ ERROR updating state: {e}")
 
 
-def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, dataframe):
+def dopisz_dane_do_arkusza(arkusz_google, nazwa_zakladki_wynikowej, dataframe):
     """Dopisuje dane z DataFrame na końcu istniejącej zakładki w arkuszu, dodając nagłówki tylko jeśli to konieczne."""
     if dataframe.empty:
         print("ℹ️ No data to append. Skipping.")
         return
     try:
-        arkusz_google = gc.open(nazwa_arkusza_matki)
-        try:
-            zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
-            # Sprawdź, czy arkusz ma jakąkolwiek zawartość.
-            ma_zawartosc = zakladka.get_all_values()
-        except gspread.exceptions.WorksheetNotFound:
-            print(f"Worksheet '{nazwa_zakladki_wynikowej}' not found, creating it...")
-            zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
-            ma_zawartosc = False  # Nowy arkusz jest pusty
-    except gspread.exceptions.SpreadsheetNotFound:
-        print(f"Spreadsheet '{nazwa_arkusza_matki}' not found, this should not happen.")
-        return
+        zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
+        ma_zawartosc = zakladka.get_all_values()
+    except gspread.exceptions.WorksheetNotFound:
+        print(f"Worksheet '{nazwa_zakladki_wynikowej}' not found, creating it...")
+        zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
+        ma_zawartosc = False
 
     lista_wierszy_do_dopisania = []
 
-    # Jeśli arkusz jest pusty, dodaj najpierw nagłówki.
     if not ma_zawartosc:
         print("Worksheet is empty. Prepending headers to the data.")
         lista_wierszy_do_dopisania.extend([dataframe.columns.values.tolist()])
 
-    # Dodaj wiersze z danymi.
     lista_wierszy_do_dopisania.extend(dataframe.values.tolist())
 
     print(f"✍️ Appending {len(lista_wierszy_do_dopisania)} total rows to worksheet '{nazwa_zakladki_wynikowej}'...")
@@ -155,11 +147,11 @@ def main():
 
     try:
         arkusz_glowny = gc.open(NAZWA_ARKUSZA_GOOGLE)
-        zakladka_danych = arkusz_glowny.sheet1
     except Exception as e:
         print(f"❌ CRITICAL ERROR: Could not open main Google Sheet '{NAZWA_ARKUSZA_GOOGLE}'. Error: {e}")
         return
 
+    zakladka_danych = arkusz_glowny.sheet1
     ostatni_przetworzony_wiersz = pobierz_stan(arkusz_glowny)
     print(f"ℹ️ Last processed row index from state: {ostatni_przetworzony_wiersz}")
 
@@ -216,7 +208,7 @@ def main():
     finalne_rekordy_df = nowe_rekordy_df.iloc[indeksy_df]
     wyniki_df = finalne_rekordy_df[[NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]]
 
-    dopisz_dane_do_arkusza(gc, NAZWA_ARKUSZA_GOOGLE, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
+    dopisz_dane_do_arkusza(arkusz_glowny, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
 
     aktualizuj_stan(arkusz_glowny, aktualna_liczba_wierszy)
 
