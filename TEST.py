@@ -77,13 +77,17 @@ def aktualizuj_stan(arkusz_glowny, nowy_indeks_wiersza):
         print(f"❌ ERROR updating state: {e}")
 
 
-def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, dataframe):
-    """Dopisuje dane z DataFrame na końcu istniejącej zakładki w arkuszu, dodając nagłówki i weryfikując zapis."""
-    if dataframe.empty:
-        print("ℹ️ No data to append. Skipping.")
-        return
+def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, dataframe_wynikow):
+    """
+    Zapisuje dane do arkusza wynikowego metodą "odczytaj-wszystko, połącz, wyczyść, zapisz-wszystko",
+    aby zapewnić maksymalną niezawodność.
+    """
+    if dataframe_wynikow.empty:
+        print("ℹ️ No new results to write. Skipping.")
+        return True  # Zwróć sukces, bo nic nie trzeba było robić
+
     try:
-        print(f"Opening spreadsheet '{nazwa_arkusza_matki}' to append data...")
+        print(f"--- Starting robust write process for worksheet '{nazwa_zakladki_wynikowej}' ---")
         arkusz_google = gc.open(nazwa_arkusza_matki)
         try:
             zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
@@ -91,37 +95,35 @@ def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, da
             print(f"Worksheet '{nazwa_zakladki_wynikowej}' not found, creating it...")
             zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
 
-        # Pobierz liczbę wierszy PRZED dopisaniem
-        wiersze_przed = len(zakladka.get_all_values())
+        # 1. Odczytaj wszystkie istniejące dane
+        print("Reading all existing data from the target sheet...")
+        istniejace_dane = zakladka.get_all_values()
+        print(f"Found {len(istniejace_dane)} existing rows.")
 
-        lista_wierszy_do_dopisania = []
+        # 2. Przygotuj nowe dane i połącz je z istniejącymi
+        nowe_wiersze = dataframe_wynikow.values.tolist()
 
-        # Jeśli arkusz jest pusty (0 wierszy), dodaj nagłówki
-        if wiersze_przed == 0:
-            print("Worksheet is empty. Prepending headers to the data.")
-            lista_wierszy_do_dopisania.extend([dataframe.columns.values.tolist()])
-
-        lista_wierszy_do_dopisania.extend(dataframe.values.tolist())
-
-        print(f"✍️ Appending {len(lista_wierszy_do_dopisania)} total rows to worksheet '{nazwa_zakladki_wynikowej}'...")
-        zakladka.append_rows(lista_wierszy_do_dopisania, value_input_option='USER_ENTERED')
-
-        # --- KROK WERYFIKACJI ---
-        print("Verifying write operation...")
-        time.sleep(2)  # Daj Google API chwilę na przetworzenie zapisu
-        wiersze_po = len(zakladka.get_all_values())
-
-        oczekiwana_liczba_wierszy = wiersze_przed + len(lista_wierszy_do_dopisania)
-
-        if wiersze_po == oczekiwana_liczba_wierszy:
-            print(f"✅ Successfully appended data. Row count is now {wiersze_po}.")
+        if not istniejace_dane:  # Jeśli arkusz jest pusty, dodaj nagłówki
+            print("Target sheet is empty. Adding headers.")
+            finalna_lista_danych = [dataframe_wynikow.columns.tolist()] + nowe_wiersze
         else:
-            print(f"❌ CRITICAL WRITE ERROR: Data was not appended correctly!")
-            print(
-                f"Rows before: {wiersze_przed}, Rows to append: {len(lista_wierszy_do_dopisania)}, Expected rows after: {oczekiwana_liczba_wierszy}, Actual rows after: {wiersze_po}")
+            finalna_lista_danych = istniejace_dane + nowe_wiersze
+
+        # 3. Wyczyść cały arkusz
+        print(f"Clearing the entire worksheet '{nazwa_zakladki_wynikowej}'...")
+        zakladka.clear()
+        time.sleep(2)  # Krótka pauza po czyszczeniu, aby API Google nadążyło
+
+        # 4. Zapisz połączone dane z powrotem
+        print(f"Writing {len(finalna_lista_danych)} total rows back to the sheet...")
+        zakladka.update(range_name='A1', values=finalna_lista_danych, value_input_option='USER_ENTERED')
+
+        print(f"✅ Robust write operation completed for '{nazwa_zakladki_wynikowej}'.")
+        return True  # Zwróć sukces
 
     except Exception as e:
-        print(f"❌ An error occurred during the append operation: {e}")
+        print(f"❌ CRITICAL ERROR during robust write operation: {e}")
+        return False  # Zwróć błąd
 
 
 def analizuj_tweety_z_openai(lista_tweetow, liczba_do_wyboru):
@@ -230,11 +232,15 @@ def main():
     finalne_rekordy_df = nowe_rekordy_df.iloc[indeksy_df]
     wyniki_df = finalne_rekordy_df[[NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]]
 
-    dopisz_dane_do_arkusza(gc, NAZWA_ARKUSZA_GOOGLE, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
+    # Zapisz dane i sprawdź, czy operacja się powiodła
+    sukces_zapisu = dopisz_dane_do_arkusza(gc, NAZWA_ARKUSZA_GOOGLE, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
 
-    aktualizuj_stan(arkusz_glowny, aktualna_liczba_wierszy)
-
-    print("\n🎉 All operations completed successfully!")
+    # Zaktualizuj stan tylko jeśli zapis się udał
+    if sukces_zapisu:
+        aktualizuj_stan(arkusz_glowny, aktualna_liczba_wierszy)
+        print("\n🎉 All operations completed successfully!")
+    else:
+        print("\n🔴 Write operation failed. State was not updated. Please check the logs.")
 
 
 if __name__ == "__main__":
