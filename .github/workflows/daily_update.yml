@@ -36,6 +36,6 @@ jobs:
       - name: Run Python script
         env:
           # Przekazanie sekretów do środowiska skryptu
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GCP_SA_KEY }}
+          OPENAI_API_KEY: ${{secrets.OPENAI_API_KEY}}
+          GOOGLE_CREDENTIALS_JSON: ${{secrets.GCP_SA_KEY}}
         run: python TEST.py
