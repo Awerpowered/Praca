@@ -27,7 +27,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install pandas 
+          pip install openai
+          pip install gspread
+          pip install re
+          pip install json
 
       # Krok 4: Uruchomienie skryptu analizy
       - name: Run Python script
