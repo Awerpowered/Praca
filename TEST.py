@@ -30,7 +30,7 @@ def autoryzuj_google_sheets():
     print("Attempting to authorize with Google Sheets...")
     try:
         # Pobierz zawartość JSON z sekretu GitHub
-        google_creds_json_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
+        google_creds_json_str = os.getenv("GCP_SA_KEY")
         if not google_creds_json_str:
             print("❌ ERROR: Environment variable GOOGLE_CREDENTIALS_JSON not found.")
             return None
