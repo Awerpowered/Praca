@@ -77,7 +77,7 @@ def aktualizuj_stan(arkusz_glowny, nowy_indeks_wiersza):
 
 
 def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, dataframe):
-    """Dopisuje dane z DataFrame na końcu istniejącej zakładki w arkuszu."""
+    """Dopisuje dane z DataFrame na końcu istniejącej zakładki w arkuszu, dodając nagłówki tylko jeśli to konieczne."""
     if dataframe.empty:
         print("ℹ️ No data to append. Skipping.")
         return
@@ -85,20 +85,28 @@ def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, da
         arkusz_google = gc.open(nazwa_arkusza_matki)
         try:
             zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
+            # Sprawdź, czy arkusz ma jakąkolwiek zawartość.
+            ma_zawartosc = zakladka.get_all_values()
         except gspread.exceptions.WorksheetNotFound:
             print(f"Worksheet '{nazwa_zakladki_wynikowej}' not found, creating it...")
             zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
+            ma_zawartosc = False  # Nowy arkusz jest pusty
     except gspread.exceptions.SpreadsheetNotFound:
         print(f"Spreadsheet '{nazwa_arkusza_matki}' not found, this should not happen.")
         return
 
-    if not zakladka.get_all_values():
-        print("Worksheet is empty. Appending headers.")
-        naglowki = [dataframe.columns.values.tolist()]
-        zakladka.append_rows(naglowki, value_input_option='USER_ENTERED')
+    lista_wierszy_do_dopisania = []
 
-    print(f"✍️ Appending {len(dataframe)} new rows to worksheet '{nazwa_zakladki_wynikowej}'...")
-    zakladka.append_rows(dataframe.values.tolist(), value_input_option='USER_ENTERED')
+    # Jeśli arkusz jest pusty, dodaj najpierw nagłówki.
+    if not ma_zawartosc:
+        print("Worksheet is empty. Prepending headers to the data.")
+        lista_wierszy_do_dopisania.extend([dataframe.columns.values.tolist()])
+
+    # Dodaj wiersze z danymi.
+    lista_wierszy_do_dopisania.extend(dataframe.values.tolist())
+
+    print(f"✍️ Appending {len(lista_wierszy_do_dopisania)} total rows to worksheet '{nazwa_zakladki_wynikowej}'...")
+    zakladka.append_rows(lista_wierszy_do_dopisania, value_input_option='USER_ENTERED')
     print(f"✅ Successfully appended data.")
 
 
@@ -155,8 +163,6 @@ def main():
     ostatni_przetworzony_wiersz = pobierz_stan(arkusz_glowny)
     print(f"ℹ️ Last processed row index from state: {ostatni_przetworzony_wiersz}")
 
-    # --- START OF FIX ---
-    # Ręczne wczytywanie danych w celu obsługi zduplikowanych/pustych nagłówków.
     print("Fetching all values to handle potentially bad headers...")
     wszystkie_wartosci = zakladka_danych.get_all_values()
     if not wszystkie_wartosci or len(wszystkie_wartosci) < 2:
@@ -181,7 +187,6 @@ def main():
     df = pd.DataFrame(dane_wiersze, columns=naglowki_naprawione)
     df.dropna(how='all', inplace=True)
     print(f"Successfully created DataFrame with {len(df)} rows.")
-    # --- END OF FIX ---
 
     aktualna_liczba_wierszy = len(df)
 
