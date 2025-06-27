@@ -89,6 +89,7 @@ def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, da
     try:
         print(f"--- Starting row-by-row write process for worksheet '{nazwa_zakladki_wynikowej}' ---")
         arkusz_google = gc.open(nazwa_arkusza_matki)
+        print(dataframe_wynikow)
         try:
             zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
         except gspread.exceptions.WorksheetNotFound:
