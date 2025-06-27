@@ -14,7 +14,7 @@ NAZWA_ARKUSZA_DOCELOWEGO = "Twitter_Test"               # Osobny plik, do które
 # Nazwa ZAKŁADKI (taba na dole) w pliku docelowym.
 # Jeśli w pliku "dupa" masz już jakąś zakładkę z danymi, wpisz jej nazwę.
 # Jeśli nie, skrypt stworzy nową o tej nazwie.
-NAZWA_ZAKLADKI_WYNIKOWEJ = "Wyniki z AI"
+NAZWA_ZAKLADKI_WYNIKOWEJ = "Sheet1"
 
 # Nazwy kolumn w arkuszu źródłowym
 NAZWA_KOLUMNY_Z_TEKSTEM = "Text"
