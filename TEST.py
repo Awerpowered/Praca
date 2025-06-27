@@ -101,15 +101,16 @@ def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, da
             print("Target sheet is empty. Appending headers...")
             naglowki = dataframe_wynikow.columns.tolist()
             zakladka.append_row(naglowki, value_input_option='USER_ENTERED')
-            time.sleep(1)  # Pauza po zapisie nagłówków
+            time.sleep(1)
 
-        # 2. Dopisuj każdy wiersz osobno w pętli
+        # 2. Dopisuj każdy wiersz osobno w pętli (Z POPRAWIONYM LOGOWANIEM)
         print(f"Appending {len(dataframe_wynikow)} new records one by one...")
-        for index, row in dataframe_wynikow.iterrows():
+        # Używamy enumerate dla poprawnego licznika w logach
+        for i, (index, row) in enumerate(dataframe_wynikow.iterrows()):
             lista_wiersza = row.values.tolist()
-            print(f"  Appending row {index + 1}/{len(dataframe_wynikow)}: {lista_wiersza}")
+            print(f"  Appending row {i + 1}/{len(dataframe_wynikow)}: {lista_wiersza}")
             zakladka.append_row(lista_wiersza, value_input_option='USER_ENTERED')
-            time.sleep(1)  # Pauza, aby nie przekroczyć limitu zapytań API
+            time.sleep(1.1) # Lekko zwiększyłem czas, aby być jeszcze bezpieczniejszym z limitami API
 
         print(f"✅ Row-by-row write operation completed for '{nazwa_zakladki_wynikowej}'.")
         return True
@@ -223,7 +224,13 @@ def main():
     indeksy_df = [i - 1 for i in wybrane_indeksy if (i - 1) < len(nowe_rekordy_df)]
 
     finalne_rekordy_df = nowe_rekordy_df.iloc[indeksy_df]
-    wyniki_df = finalne_rekordy_df[[NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]]
+
+    # --- KLUCZOWA ZMIANA JEST TUTAJ ---
+    # Tworzymy ostateczną ramkę danych, używając .copy() dla bezpieczeństwa
+    wyniki_df = finalne_rekordy_df[[NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]].copy()
+    # Resetujemy indeks, aby pętla w funkcji zapisującej działała na czystych danych (0, 1, 2...)
+    wyniki_df.reset_index(drop=True, inplace=True)
+    # ------------------------------------
 
     sukces_zapisu = dopisz_dane_do_arkusza(gc, NAZWA_ARKUSZA_GOOGLE, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
 
@@ -232,7 +239,6 @@ def main():
         print("\n🎉 All operations completed successfully!")
     else:
         print("\n🔴 Write operation failed. State was not updated. Please check the logs.")
-
 
 if __name__ == "__main__":
     main()
