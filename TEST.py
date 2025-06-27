@@ -79,15 +79,15 @@ def aktualizuj_stan(arkusz_glowny, nowy_indeks_wiersza):
 
 def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, dataframe_wynikow):
     """
-    Zapisuje dane do arkusza wynikowego metodą zbiorczą (bulk append).
-    Jest to wydajniejsza i szybsza metoda niż zapisywanie wiersz po wierszu.
+    Zapisuje dane do arkusza wynikowego metodą 'update', która jest bardziej bezpośrednia.
+    Funkcja najpierw znajduje pierwszy wolny wiersz, a następnie wkleja dane do określonego zakresu.
     """
     if dataframe_wynikow.empty:
         print("ℹ️ Brak nowych wyników do zapisu. Pomijanie.")
         return True
 
     try:
-        print(f"--- Rozpoczęto proces zbiorczego zapisu do arkusza '{nazwa_zakladki_wynikowej}' ---")
+        print(f"--- Rozpoczęto proces zapisu do arkusza '{nazwa_zakladki_wynikowej}' metodą 'update' ---")
         arkusz_google = gc.open(nazwa_arkusza_matki)
         try:
             zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
@@ -96,34 +96,44 @@ def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, da
             print(f"Arkusz '{nazwa_zakladki_wynikowej}' nie został znaleziony, tworzenie nowego...")
             zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
 
-        # Sprawdź, czy arkusz jest pusty, aby wiedzieć, czy dodać nagłówki
-        is_sheet_empty = not zakladka.get_all_values()
+        # Znajdź pierwszy wolny wiersz
+        all_values = zakladka.get_all_values()
+        next_row_index = len(all_values) + 1
 
-        # Przygotuj listę wierszy do dodania
-        rows_to_append = []
-
-        # Jeśli arkusz jest pusty, dodaj nagłówki jako pierwszy element listy
-        if is_sheet_empty:
-            print("Arkusz docelowy jest pusty. Dołączanie nagłówków do zapisu.")
+        # Przygotuj dane do zapisu
+        data_to_write = []
+        # Jeśli arkusz jest pusty (nie ma żadnych wartości), dodaj nagłówki
+        if not all_values:
+            print("Arkusz docelowy jest pusty. Dołączanie nagłówków.")
             naglowki = dataframe_wynikow.columns.tolist()
-            rows_to_append.append(naglowki)
+            data_to_write.append(naglowki)
+            # Ustawiamy startowy wiersz na 1, bo będziemy pisać od A1
+            start_cell = 'A1'
+        else:
+            # Arkusz ma już dane, piszemy od następnego wolnego wiersza
+            start_cell = f'A{next_row_index}'
 
-        # Dołącz dane z DataFrame do listy wierszy
-        rows_to_append.extend(dataframe_wynikow.values.tolist())
+        # Dodaj właściwe dane z DataFrame
+        data_to_write.extend(dataframe_wynikow.values.tolist())
 
-        if len(rows_to_append) == (1 if is_sheet_empty else 0):
+        if not data_to_write:
             print("ℹ️ Po przetworzeniu nie ma danych do dodania. Pomijanie.")
             return True
 
-        # Użyj `append_rows` do dodania wszystkich wierszy (nagłówków + danych) w jednej operacji
-        print(f"Dodawanie {len(dataframe_wynikow)} wierszy z danymi...")
-        zakladka.append_rows(rows_to_append, value_input_option='USER_ENTERED')
+        # Zaktualizuj arkusz za pomocą metody update
+        print(f"Zapisywanie {len(dataframe_wynikow)} wierszy, zaczynając od komórki {start_cell}...")
+        zakladka.update(start_cell, data_to_write, value_input_option='USER_ENTERED')
 
-        print(f"✅ Operacja zbiorczego zapisu została pomyślnie zakończona dla '{nazwa_zakladki_wynikowej}'.")
+        print(f"✅ Operacja zapisu metodą 'update' została pomyślnie zakończona dla '{nazwa_zakladki_wynikowej}'.")
         return True
 
+    except gspread.exceptions.APIError as e:
+        print(f"❌ KRYTYCZNY BŁĄD API Google podczas operacji 'update': {e}")
+        # Wypisz szczegółową odpowiedź z API, jeśli jest dostępna
+        print(f"   Szczegóły błędu: {e.response.text}")
+        return False
     except Exception as e:
-        print(f"❌ KRYTYCZNY BŁĄD podczas operacji zbiorczego zapisu: {e}")
+        print(f"❌ KRYTYCZNY BŁĄD podczas operacji zapisu metodą 'update': {e}")
         return False
 
 
