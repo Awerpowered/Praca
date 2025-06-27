@@ -79,44 +79,56 @@ def aktualizuj_stan(arkusz_glowny, nowy_indeks_wiersza):
 
 def dopisz_dane_do_arkusza(gc, nazwa_arkusza_matki, nazwa_zakladki_wynikowej, dataframe_wynikow):
     """
-    Zapisuje dane do arkusza wynikowego metodą "w pętli for", wiersz po wierszu,
-    aby zapewnić maksymalną niezawodność.
+    Zapisuje dane do arkusza wynikowego. Znajduje pierwszy wolny wiersz i wkleja tam dane.
+    Jeśli arkusz jest pusty, dodaje również nagłówki.
     """
     if dataframe_wynikow.empty:
-        print("ℹ️ No new results to write. Skipping.")
+        print("ℹ️ Brak nowych wyników do zapisu. Pomijanie.")
         return True
 
     try:
-        print(f"--- Starting row-by-row write process for worksheet '{nazwa_zakladki_wynikowej}' ---")
+        print(f"--- Rozpoczęto proces zapisu do arkusza '{nazwa_zakladki_wynikowej}' ---")
         arkusz_google = gc.open(nazwa_arkusza_matki)
-        print(dataframe_wynikow)
         try:
             zakladka = arkusz_google.worksheet(nazwa_zakladki_wynikowej)
+            print(f"📝 Otwarto istniejący arkusz '{nazwa_zakladki_wynikowej}'.")
         except gspread.exceptions.WorksheetNotFound:
-            print(f"Worksheet '{nazwa_zakladki_wynikowej}' not found, creating it...")
+            print(f"Arkusz '{nazwa_zakladki_wynikowej}' nie został znaleziony, tworzenie nowego...")
             zakladka = arkusz_google.add_worksheet(title=nazwa_zakladki_wynikowej, rows="100", cols="20")
 
-        # 1. Sprawdź, czy trzeba dodać nagłówki
-        if not zakladka.get_all_values():
-            print("Target sheet is empty. Appending headers...")
+        # Znajdź następny wolny wiersz. Jest to najprostsza i najbardziej niezawodna metoda.
+        all_values = zakladka.get_all_values()
+        next_row = len(all_values) + 1
+
+        # Przygotuj dane do zapisu
+        data_to_write = []
+        # Jeśli arkusz jest pusty (next_row będzie 1), dodaj najpierw nagłówki
+        if next_row == 1:
+            print("Arkusz docelowy jest pusty. Dołączanie nagłówków.")
             naglowki = dataframe_wynikow.columns.tolist()
-            zakladka.append_row(naglowki, value_input_option='USER_ENTERED')
-            time.sleep(1)
+            data_to_write.append(naglowki)
 
-        # 2. Dopisuj każdy wiersz osobno w pętli (Z POPRAWIONYM LOGOWANIEM)
-        print(f"Appending {len(dataframe_wynikow)} new records one by one...")
-        # Używamy enumerate dla poprawnego licznika w logach
-        for i, (index, row) in enumerate(dataframe_wynikow.iterrows()):
-            lista_wiersza = row.values.tolist()
-            print(f"  Appending row {i + 1}/{len(dataframe_wynikow)}: {lista_wiersza}")
-            zakladka.append_row(lista_wiersza, value_input_option='USER_ENTERED')
-            time.sleep(1.1) # Lekko zwiększyłem czas, aby być jeszcze bezpieczniejszym z limitami API
+        # Dodaj właściwe dane z DataFrame
+        data_to_write.extend(dataframe_wynikow.values.tolist())
 
-        print(f"✅ Row-by-row write operation completed for '{nazwa_zakladki_wynikowej}'.")
+        if not data_to_write:
+            print("ℹ️ Po przetworzeniu nie ma danych do dodania. Pomijanie.")
+            return True
+
+        # Zaktualizuj arkusz za pomocą metody update, zaczynając od pierwszego wolnego wiersza
+        print(f"Zapisywanie {len(data_to_write)} wierszy, zaczynając od komórki A{next_row}...")
+        zakladka.update(f'A{next_row}', data_to_write, value_input_option='USER_ENTERED')
+
+        print(f"✅ Operacja zapisu została pomyślnie zakończona dla '{nazwa_zakladki_wynikowej}'.")
         return True
 
+    except gspread.exceptions.APIError as e:
+        print(f"❌ KRYTYCZNY BŁĄD API Google podczas operacji zapisu: {e}")
+        # Wypisz szczegółową odpowiedź z API, jeśli jest dostępna
+        print(f"   Szczegóły błędu: {e.response.text}")
+        return False
     except Exception as e:
-        print(f"❌ CRITICAL ERROR during row-by-row write operation: {e}")
+        print(f"❌ KRYTYCZNY BŁĄD podczas operacji zapisu: {e}")
         return False
 
 
@@ -140,14 +152,14 @@ def analizuj_tweety_z_openai(lista_tweetow, liczba_do_wyboru):
             f"\n\n--- TWEETY DO ANALIZY ---\n{sformatowane_tweety}"
         )
 
-        print(f"\n🤖 Sending {len(lista_tweetow)} tweets for analysis by OpenAI...")
+        print(f"\n🤖 Wysyłanie {len(lista_tweetow)} tweetów do analizy przez OpenAI...")
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "system", "content": prompt_systemowy}, {"role": "user", "content": prompt_uzytkownika}],
             temperature=0.1,
         )
         wynik_tekstowy = response.choices[0].message.content
-        print(f"🤖 OpenAI response received: '{wynik_tekstowy}'")
+        print(f"🤖 Otrzymano odpowiedź od OpenAI: '{wynik_tekstowy}'")
         numery = re.findall(r'\d+', wynik_tekstowy)
         indeksy = [int(n) for n in numery]
         return indeksy if indeksy else None
@@ -158,7 +170,7 @@ def analizuj_tweety_z_openai(lista_tweetow, liczba_do_wyboru):
 
 def main():
     """Główna funkcja skryptu."""
-    print("🚀 Starting daily tweet analysis script.")
+    print("🚀 Uruchamianie codziennego skryptu do analizy tweetów.")
     gc = autoryzuj_google_sheets()
     if not gc:
         return
@@ -166,17 +178,17 @@ def main():
     try:
         arkusz_glowny = gc.open(NAZWA_ARKUSZA_GOOGLE)
     except Exception as e:
-        print(f"❌ CRITICAL ERROR: Could not open main Google Sheet '{NAZWA_ARKUSZA_GOOGLE}'. Error: {e}")
+        print(f"❌ KRYTYCZNY BŁĄD: Nie można otworzyć głównego arkusza Google '{NAZWA_ARKUSZA_GOOGLE}'. Błąd: {e}")
         return
 
     zakladka_danych = arkusz_glowny.sheet1
     ostatni_przetworzony_wiersz = pobierz_stan(arkusz_glowny)
-    print(f"ℹ️ Last processed row index from state: {ostatni_przetworzony_wiersz}")
+    print(f"ℹ️ Indeks ostatniego przetworzonego wiersza ze stanu: {ostatni_przetworzony_wiersz}")
 
-    print("Fetching all values to handle potentially bad headers...")
+    print("Pobieranie wszystkich wartości w celu obsługi potencjalnie błędnych nagłówków...")
     wszystkie_wartosci = zakladka_danych.get_all_values()
     if not wszystkie_wartosci or len(wszystkie_wartosci) < 2:
-        print("✅ Worksheet is empty or contains only a header. No records to process. Exiting.")
+        print("✅ Arkusz jest pusty lub zawiera tylko nagłówek. Brak rekordów do przetworzenia. Zakończono.")
         return
 
     naglowki_oryginalne = wszystkie_wartosci[0]
@@ -196,49 +208,56 @@ def main():
 
     df = pd.DataFrame(dane_wiersze, columns=naglowki_naprawione)
     df.dropna(how='all', inplace=True)
-    print(f"Successfully created DataFrame with {len(df)} rows.")
+    print(f"Pomyślnie utworzono DataFrame z {len(df)} wierszami.")
 
     aktualna_liczba_wierszy = len(df)
 
     if aktualna_liczba_wierszy <= ostatni_przetworzony_wiersz:
-        print("✅ No new records to process. Exiting.")
+        print("✅ Brak nowych rekordów do przetworzenia. Zakończono.")
         return
 
-    print(f"Found {aktualna_liczba_wierszy - ostatni_przetworzony_wiersz} new records to process.")
+    print(f"Znaleziono {aktualna_liczba_wierszy - ostatni_przetworzony_wiersz} nowych rekordów do przetworzenia.")
     nowe_rekordy_df = df.iloc[ostatni_przetworzony_wiersz:aktualna_liczba_wierszy].reset_index(drop=True)
 
     for kolumna in [NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]:
         if kolumna not in nowe_rekordy_df.columns:
-            print(f"❌ CRITICAL ERROR: Missing column '{kolumna}' in source data.")
-            print(f"Available columns: {nowe_rekordy_df.columns.tolist()}")
+            print(f"❌ KRYTYCZNY BŁĄD: Brakująca kolumna '{kolumna}' w danych źródłowych.")
+            print(f"Dostępne kolumny: {nowe_rekordy_df.columns.tolist()}")
             return
 
     tweety_do_analizy = nowe_rekordy_df[NAZWA_KOLUMNY_Z_TEKSTEM].tolist()
     wybrane_indeksy = analizuj_tweety_z_openai(tweety_do_analizy, LICZBA_TWEETOW_DO_WYBORU)
 
     if not wybrane_indeksy:
-        print("🔴 AI analysis did not return valid results. State will not be updated.")
+        print("🔴 Analiza AI nie zwróciła prawidłowych wyników. Stan nie zostanie zaktualizowany.")
         return
 
-    print(f"AI selected tweets with relative numbers: {wybrane_indeksy}")
+    print(f"AI wybrało tweety o względnych numerach: {wybrane_indeksy}")
     indeksy_df = [i - 1 for i in wybrane_indeksy if (i - 1) < len(nowe_rekordy_df)]
 
     finalne_rekordy_df = nowe_rekordy_df.iloc[indeksy_df]
+    wyniki_df = finalne_rekordy_df[[NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]]
 
-    # --- KLUCZOWA ZMIANA JEST TUTAJ ---
-    # Tworzymy ostateczną ramkę danych, używając .copy() dla bezpieczeństwa
-    wyniki_df = finalne_rekordy_df[[NAZWA_KOLUMNY_Z_TEKSTEM, NAZWA_KOLUMNY_Z_LINKIEM]].copy()
-    # Resetujemy indeks, aby pętla w funkcji zapisującej działała na czystych danych (0, 1, 2...)
-    wyniki_df.reset_index(drop=True, inplace=True)
-    # ------------------------------------
+    # --- DODATKOWE LOGOWANIE DANYCH ---
+    print("\n--- Przygotowano dane do zapisu ---")
+    print(f"Liczba rekordów do zapisania: {len(wyniki_df)}")
+    if not wyniki_df.empty:
+        print("Dane:")
+        # Używamy to_string(), aby wyświetlić całą ramkę danych w logach
+        print(wyniki_df.to_string())
+    else:
+        print("Brak danych do zapisania.")
+    print("---------------------------------")
+    # --- KONIEC DODATKOWEGO LOGOWANIA ---
 
     sukces_zapisu = dopisz_dane_do_arkusza(gc, NAZWA_ARKUSZA_GOOGLE, NAZWA_ARKUSZA_WYNIKOWEGO, wyniki_df)
 
     if sukces_zapisu:
         aktualizuj_stan(arkusz_glowny, aktualna_liczba_wierszy)
-        print("\n🎉 All operations completed successfully!")
+        print("\n🎉 Wszystkie operacje zakończone pomyślnie!")
     else:
-        print("\n🔴 Write operation failed. State was not updated. Please check the logs.")
+        print("\n🔴 Operacja zapisu nie powiodła się. Stan nie został zaktualizowany. Sprawdź logi.")
+
 
 if __name__ == "__main__":
     main()
