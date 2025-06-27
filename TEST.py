@@ -8,8 +8,8 @@ from openai import OpenAI
 
 # --- GŁÓWNA KONFIGURACJA ---
 # --- GŁÓWNA KONFIGURACJA ---
-NAZWA_ARKUSZA_ZRODLOWEGO = "Twitter_LLM"       # Plik, z którego czytamy dane i stan
-NAZWA_ARKUSZA_DOCELOWEGO = "Twitter_test"               # Osobny plik, do którego zapisujemy wyniki
+NAZWA_ARKUSZA_ZRODLOWEGO = "Twitter"       # Plik, z którego czytamy dane i stan
+NAZWA_ARKUSZA_DOCELOWEGO = "Publish_slack_AI"               # Osobny plik, do którego zapisujemy wyniki
 
 # Nazwa ZAKŁADKI (taba na dole) w pliku docelowym.
 # Jeśli w pliku "dupa" masz już jakąś zakładkę z danymi, wpisz jej nazwę.
