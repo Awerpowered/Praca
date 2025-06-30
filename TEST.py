@@ -156,7 +156,7 @@ Nie rekomenduj książek.
 
         print(f"\n🤖 Sending {len(lista_tweetow)} tweets for analysis by OpenAI...")
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[{"role": "system", "content": prompt_systemowy}, {"role": "user", "content": prompt_uzytkownika}],
             temperature=0.1,
         )
