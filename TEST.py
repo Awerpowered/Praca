@@ -138,7 +138,14 @@ def analizuj_tweety_z_openai(lista_tweetow, liczba_do_wyboru):
         client = OpenAI(api_key=openai_api_key)
         sformatowane_tweety = "\n\n".join([f"Tweet numer {i + 1}:\n{tweet}" for i, tweet in enumerate(lista_tweetow)])
 
-        prompt_systemowy = "Jesteś ekspertem od marketingu i mediów społecznościowych. Twoim zadaniem jest analiza tweetów pod kątem ich wartości i potencjału."
+        prompt_systemowy = """Jesteś doświadczonym ekspertem  specjalizującym się w tematyce sztucznej inteligencji (AI), dużych modeli językowych (LLM) i nowoczesnych technologii. Twoim zadaniem jest analiza tweetów związanych z AI, LLM i pokrewnymi zagadnieniami pod kątem ich jakości, przydatności.
+        Oceniaj tweety pod względem:
+-merytorycznej wartości (czy zawierają ciekawe spostrzeżenia, dane, opinie),
+-aktualności i zgodności z trendami w AI/LLM,
+-oryginalności i unikalności podejścia.
+
+Nie rekomenduj książek.
+"""
         prompt_uzytkownika = (
             f"Przeanalizuj poniższą listę {len(lista_tweetow)} tweetów, z których każdy ma przypisany 'Tweet numer X'.\n\n"
             f"Twoim zadaniem jest wybrać {liczba_do_wyboru} z nich, które są najbardziej wartościowe.\n\n"
