@@ -3,7 +3,7 @@ name: Daily Tweet Analysis
 on:
   # Uruchamia skrypt codziennie o 7:00 UTC (9:00 czasu polskiego letniego)
   schedule:
-    - cron: '0 7 * * *'
+    - cron: '0 5 * * *'
 
   # Pozwala na ręczne uruchomienie skryptu z poziomu zakładki "Actions" w GitHub
   workflow_dispatch:
